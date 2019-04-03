@@ -1,8 +1,15 @@
-#!/usr/bin/env bash
+#!/bin/sh
+
+# Make sure we're running bash
+if test "x$BASH_VERSION" = x; then
+  exec bash "$0" "$@"
+fi
+
+test "$UID" -eq 0 || { echo "This script must be run as root."; exit 1; }
 
 set -euo pipefail
 
-if test 0 -eq $#; then
+if test "$#" -eq 0; then
   echo "Usage: $0 device"
   exit 1
 fi
@@ -61,7 +68,7 @@ swapon /mnt/swapfile
 echo "Mounting boot partition:"
 bootpath="/mnt/boot"
 
-if test yes = "$efi"; then
+if test "$efi" = yes; then
   bootpath="$bootpath/efi"
 fi
 
