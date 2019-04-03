@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if test 0 -eq $#; then
+  echo "Usage: $0 device"
+  exit 1
+fi
+
+dev=$1
+prt="parted --alignment optimal --script $dev"
+rootpart="root"
+
+# check if we're gpt or efi
+efi="no"
+test -d /sys/firmware/efi && efi="yes"
+
+echo "Creating new partition table on $dev"
+$prt \
+  mklabel gpt \
+  mkpart primary "0%" 128MB \     # boot partition
+  mkpart primary 128MB "100%" \   # encrypted root partition
+  name 1 boot \
+  name 2 crypt
+
+echo "Setting boot partition flag:"
+case "$efi"
+  no)
+    echo "- bios_grub"
+    $prt set 1 bios_grub on
+    ;;
+  yes)
+    echo "- esp"
+    $prt set 1 esp on
+    ;;
+esac
+
+echo "Formatting boot partition as FAT32"
+mkfs.fat -n boot -F 32 "${dev}1"
+
+echo "Encrypting root partition"
+cryptsetup luksFormat "${dev}2"
+echo -n "- uuid: "
+cryptsetup luksUUID "${dev}2"
+cryptsetup open --type luks "${dev}2" "$rootpart"
+
+echo "Formatting root partition as ext4"
+mkfs.ext4 -L "$rootpart" /dev/mapper/"$rootpart"
+
+echo "Mounting root partition"
+mount LABEL="$rootpart" /mnt
+
+# swap size = RAM + 2GB
+swapsize=$(free -m | awk '/Mem/ {print $2 + 2048}')
+echo "Creating swapfile with size: $swapsize MiB"
+dd if=/dev/zero of=/mnt/swapfile bs=1MiB count="$swapsize"
+chmod a-rwx,u+rw /mnt/swapfile # only give root access
+mkswap /mnt/swapfile
+swapon /mnt/swapfile
+
+echo "Mounting boot partition:"
+bootpath="/mnt/boot"
+
+if test yes = "$efi"; then
+  bootpath="$bootpath/efi"
+fi
+
+echo "- $bootpath"
+mkdir -p "$bootpath"
+mount LABEL=boot "$bootpath"
