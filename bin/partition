@@ -14,64 +14,61 @@ if test "$#" -eq 0; then
   exit 1
 fi
 
+cat <<EOF
+                     o     o
+   _   __,   ,_  _|_   _|_     __   _  _
+ |/ \_/  |  /  |  |  |  |  |  /  \_/ |/ |
+ |__/ \_/|_/   |_/|_/|_/|_/|_/\__/   |  |_/
+/|
+\|         ~ wreck those drives ~
+
++++ $(date)
+EOF
+
 dev=$1
-prt="parted --alignment optimal --script $dev"
+prt="parted -a optimal -s $dev"
 rootpart="root"
 
-# check if we're gpt or efi
-efi="no"
-test -d /sys/firmware/efi && efi="yes"
+# check if we're bios or efi
+bootflag="bios_grub"
+test -d /sys/firmware/efi && bootflag="esp"
 
-echo "Creating new partition table on $dev"
+echo "--- Creating new partition table on $dev"
 $prt \
   mklabel gpt \
-  mkpart primary "0%" 128MB \     # boot partition
-  mkpart primary 128MB "100%" \   # encrypted root partition
+  mkpart primary "0%" 128MB \
+  mkpart primary 128MB "100%" \
   name 1 boot \
   name 2 crypt
 
-echo "Setting boot partition flag:"
-case "$efi"
-  no)
-    echo "- bios_grub"
-    $prt set 1 bios_grub on
-    ;;
-  yes)
-    echo "- esp"
-    $prt set 1 esp on
-    ;;
-esac
+echo "--- Setting boot partition flag: $bootflag"
+$prt set 1 "$bootflag" on
 
-echo "Formatting boot partition as FAT32"
+echo "--- Formatting boot partition as FAT32"
 mkfs.fat -n boot -F 32 "${dev}1"
 
-echo "Encrypting root partition"
+echo "--- Encrypting root partition"
 cryptsetup luksFormat "${dev}2"
 echo -n "- uuid: "
 cryptsetup luksUUID "${dev}2"
 cryptsetup open --type luks "${dev}2" "$rootpart"
 
-echo "Formatting root partition as ext4"
+echo "--- Formatting root partition as ext4"
 mkfs.ext4 -L "$rootpart" /dev/mapper/"$rootpart"
 
-echo "Mounting root partition"
+echo "--- Mounting root partition"
 mount LABEL="$rootpart" /mnt
 
 # swap size = RAM + 2GB
 swapsize=$(free -m | awk '/Mem/ {print $2 + 2048}')
-echo "Creating swapfile with size: $swapsize MiB"
+echo "--- Creating swapfile with size: $swapsize MiB"
 dd if=/dev/zero of=/mnt/swapfile bs=1MiB count="$swapsize"
 chmod a-rwx,u+rw /mnt/swapfile # only give root access
 mkswap /mnt/swapfile
 swapon /mnt/swapfile
 
-echo "Mounting boot partition:"
 bootpath="/mnt/boot"
-
-if test "$efi" = yes; then
-  bootpath="$bootpath/efi"
-fi
-
-echo "- $bootpath"
+test "$bootflag" = esp && bootpath="$bootpath/efi"
+echo "--- Mounting boot partition to $bootpath"
 mkdir -p "$bootpath"
 mount LABEL=boot "$bootpath"
