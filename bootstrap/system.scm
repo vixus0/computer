@@ -1,6 +1,6 @@
 (use-modules (gnu))
 (use-service-modules networking ssh desktop pm sound)
-(use-package-modules tmux xorg freedesktop wm version-control vim)
+(use-package-modules tmux xorg freedesktop wm version-control vim wget curl)
 
 (define bios-bootloader (bootloader-configuration
                           (bootloader grub-bootloader)
@@ -51,6 +51,8 @@
               swaylock
               xorg-server-xwayland
               neovim
+              wget
+              curl
               %base-packages))
 
   ;; Services
