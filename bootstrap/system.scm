@@ -1,6 +1,6 @@
 (use-modules (gnu))
 (use-service-modules networking ssh desktop pm sound)
-(use-package-modules tmux xorg freedesktop wm version-control vim wget curl)
+(use-package-modules tmux xorg freedesktop wm version-control vim wget curl fonts)
 
 (define bios-bootloader (bootloader-configuration
                           (bootloader grub-bootloader)
@@ -53,6 +53,9 @@
               neovim
               wget
               curl
+              font-dejavu
+              font-gnu-freefont-ttf
+              font-hack
               %base-packages))
 
   ;; Services
