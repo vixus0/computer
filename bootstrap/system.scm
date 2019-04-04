@@ -1,6 +1,6 @@
 (use-modules (gnu))
-(use-service-modules networking ssh)
-(use-package-modules tmux)
+(use-service-modules networking ssh desktop pm sound)
+(use-package-modules tmux xorg freedesktop wm version-control vim)
 
 (define bios-bootloader (bootloader-configuration
                           (bootloader grub-bootloader)
@@ -43,12 +43,25 @@
                %base-user-accounts))
 
   ;; Globally-installed packages.
-  (packages (cons tmux %base-packages))
+  (packages (cons 
+              tmux 
+              git-minimal
+              sway
+              swayidle
+              swaylock
+              xorg-server-xwayland
+              neovim
+              %base-packages))
 
-  ;; Add services to the baseline: a DHCP client and
-  ;; an SSH server.
+  ;; Services
+  ;; pcscd-service
+  ;; libvirt-service
   (services (cons* (service dhcp-client-service-type)
                    (service openssh-service-type
                             (openssh-configuration
                               (port-number 2222)))
-                   %base-services)))
+                   (service dbus-service-type)
+                   (service elogind-service-type)
+                   (service tlp-service-type)
+                   (service alsa-service-type)
+                   %base-services))
