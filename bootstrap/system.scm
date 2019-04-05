@@ -43,8 +43,8 @@
                %base-user-accounts))
 
   ;; Globally-installed packages.
-  (packages (cons 
-              tmux 
+  (packages (cons*
+              tmux
               git-minimal
               sway
               swayidle
@@ -54,8 +54,6 @@
               wget
               curl
               font-dejavu
-              font-gnu-freefont-ttf
-              font-hack
               %base-packages))
 
   ;; Services
@@ -65,8 +63,7 @@
                    (service openssh-service-type
                             (openssh-configuration
                               (port-number 2222)))
-                   (service dbus-service-type)
                    (service elogind-service-type)
                    (service tlp-service-type)
                    (service alsa-service-type)
-                   %base-services))
+                   %base-services)))

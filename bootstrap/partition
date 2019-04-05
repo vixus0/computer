@@ -36,8 +36,8 @@ test -d /sys/firmware/efi && bootflag="esp"
 echo "--- Creating new partition table on $dev"
 $prt \
   mklabel gpt \
-  mkpart primary "0%" 128MB \
-  mkpart primary 128MB "100%" \
+  mkpart primary "0%" 550MiB \
+  mkpart primary 550MiB "100%" \
   name 1 boot \
   name 2 crypt
 
