@@ -1,6 +1,13 @@
 (use-modules (gnu))
+(use-modules (guix channels))
+(use-modules (vixus linux-blobby))
 (use-service-modules networking ssh desktop pm sound)
 (use-package-modules tmux xorg freedesktop wm version-control vim wget curl fonts)
+
+(cons (channel
+        (name 'vixus)
+        (url "https://github.com/vixus0/guix-pkg.git"))
+      %default-channels)
 
 (define bios-bootloader (bootloader-configuration
                           (bootloader grub-bootloader)
@@ -18,20 +25,27 @@
   ;; Choose between EFI and BIOS bootloader
   (bootloader (if (access? "/sys/firmware/efi" R_OK) efi-bootloader bios-bootloader))
 
-  ;; LUKS device mapping
+  ;; Kernel
+  (kernel linux-blobby)
+  (firmware (append (list linux-firmware-iwlwifi) %base-firmware))
+
+  ;; Filesystems
   (mapped-devices
    (list (mapped-device
           (source "/dev/sda2")
           (target "root")
           (type luks-device-mapping))))
 
-  ;; Mount root
-  (file-systems (cons (file-system
-                        (device (file-system-label "root"))
-                        (mount-point "/")
-                        (type "ext4")
-                        (dependencies mapped-devices))
-                      %base-file-systems))
+  (file-systems (cons* (file-system
+                         (device (file-system-label "boot"))
+                         (mount-point "/boot/efi")
+                         (type "vfat"))
+                       (file-system
+                         (device (file-system-label "root"))
+                         (mount-point "/")
+                         (type "ext4")
+                         (dependencies mapped-devices))
+                       %base-file-systems))
 
   ;; Users
   (users (cons (user-account
