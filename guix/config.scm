@@ -29,6 +29,9 @@
   (kernel linux-blobby)
   (firmware (append (list linux-firmware-iwlwifi) %base-firmware))
 
+  ;; xts is a builtin module
+  (initrd-modules (delete "xts" %base-initrd-modules))
+
   ;; Filesystems
   (mapped-devices
    (list (mapped-device
