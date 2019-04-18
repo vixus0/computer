@@ -1,0 +1,11 @@
+(specifications->manifest
+  '("emacs"
+    "stow"
+    "tmux"
+    "curl"
+    "sway"
+    "swayidle"
+    "swaylock"
+    "kitty"
+    "xorg-server-xwayland"
+    "font-dejavu"))
