@@ -48,10 +48,23 @@
   #:use-module (gnu packages texinfo)
   #:use-module (gnu packages compression)
   #:use-module (gnu packages nvi)
+  #:use-module (vixus linux-blobby)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-26)
-  #:use-module (vixus linux-blobby)
-  #:export (installation-os))
+  #:export (installation-os
+            a20-olinuxino-lime-installation-os
+            a20-olinuxino-lime2-emmc-installation-os
+            a20-olinuxino-micro-installation-os
+            bananapi-m2-ultra-installation-os
+            beaglebone-black-installation-os
+            mx6cuboxi-installation-os
+            nintendo-nes-classic-edition-installation-os
+            novena-installation-os
+            pine64-plus-installation-os
+            pinebook-installation-os
+            rk3399-puma-installation-os
+            wandboard-installation-os
+            os-with-u-boot))
 
 ;;; Commentary:
 ;;;
@@ -61,19 +74,93 @@
 ;;; Code:
 
 
-(define (log-to-info)
+;;;
+;;; Documentation service.
+;;;
+
+(define %installation-node-names
+  ;; Translated name of the "System Installation" node of the manual.  Ideally
+  ;; we'd extract it from the 'guix-manual' gettext domain, but that one is
+  ;; usually not available at run time, hence this hack.
+  '(("de" . "Systeminstallation")
+    ("en" . "System Installation")
+    ("fr" . "Installation du système")))
+
+(define (log-to-info tty user)
   "Return a script that spawns the Info reader on the right section of the
 manual."
   (program-file "log-to-info"
-                #~(begin
+                #~(let* ((tty      (open-file #$(string-append "/dev/" tty)
+                                              "r0+"))
+                         (locale   (cadr (command-line)))
+                         (language (string-take locale
+                                                (string-index locale #\_)))
+                         (infodir  "/run/current-system/profile/share/info")
+                         (per-lang (string-append infodir "/guix." language
+                                                  ".info.gz"))
+                         (file     (if (file-exists? per-lang)
+                                       per-lang
+                                       (string-append infodir "/guix.info")))
+                         (node     (or (assoc-ref '#$%installation-node-names
+                                                  language)
+                                       "System Installation")))
+                    (redirect-port tty (current-output-port))
+                    (redirect-port tty (current-error-port))
+                    (redirect-port tty (current-input-port))
+
+                    (let ((pw (getpwnam #$user)))
+                      (setgid (passwd:gid pw))
+                      (setuid (passwd:uid pw)))
+
                     ;; 'gunzip' is needed to decompress the doc.
                     (setenv "PATH" (string-append #$gzip "/bin"))
 
-                    (execl (string-append #$info-reader "/bin/info") "info"
-                           "-d" "/run/current-system/profile/share/info"
-                           "-f" (string-append #$guix "/share/info/guix.info")
-                           "-n" "System Installation"))))
+                    ;; Change this process' locale so that command-line
+                    ;; arguments to 'info' are properly encoded.
+                    (catch #t
+                      (lambda ()
+                        (setlocale LC_ALL locale)
+                        (setenv "LC_ALL" locale))
+                      (lambda _
+                        ;; Sometimes LOCALE itself is not available.  In that
+                        ;; case pick the one UTF-8 locale that's known to work
+                        ;; instead of failing.
+                        (setlocale LC_ALL "en_US.utf8")
+                        (setenv "LC_ALL" "en_US.utf8")))
 
+                    (execl #$(file-append info-reader "/bin/info")
+                           "info" "-d" infodir "-f" file "-n" node))))
+
+(define (documentation-shepherd-service tty)
+  (list (shepherd-service
+         (provision (list (symbol-append 'term- (string->symbol tty))))
+         (requirement '(user-processes host-name udev virtual-terminal))
+         (start #~(lambda* (#:optional (locale "en_US.utf8"))
+                    (fork+exec-command
+                     (list #$(log-to-info tty "documentation") locale)
+                     #:environment-variables
+                     `("GUIX_LOCPATH=/run/current-system/locale"
+                       "TERM=linux"))))
+         (stop #~(make-kill-destructor)))))
+
+(define %documentation-users
+  ;; User account for the Info viewer.
+  (list (user-account (name "documentation")
+                      (system? #t)
+                      (group "nogroup")
+                      (home-directory "/var/empty"))))
+
+(define documentation-service-type
+  ;; Documentation viewer service.
+  (service-type (name 'documentation)
+                (extensions
+                 (list (service-extension shepherd-root-service-type
+                                          documentation-shepherd-service)
+                       (service-extension account-service-type
+                                          (const %documentation-users))))
+                (description "Run the Info reader on a tty.")))
+
+
 (define %backing-directory
   ;; Sub-directory used as the backing store for copy-on-write.
   "/tmp/guix-inst")
@@ -146,6 +233,42 @@ the user's target storage device rather than on the RAM disk."
   ;; See <http://bugs.gnu.org/18061> for the initial report.
   (service cow-store-service-type 'mooooh!))
 
+
+(define (/etc/configuration-files _)
+  "Return a list of tuples representing configuration templates to add to
+/etc."
+  (define (file f)
+    (local-file (string-append "bootstrap/" f)))
+
+  (define directory
+    (computed-file "configuration-templates"
+                   (with-imported-modules '((guix build utils))
+                     #~(begin
+                         (mkdir #$output)
+                         (for-each (lambda (file target)
+                                     (copy-file file
+                                                (string-append #$output "/"
+                                                               target)))
+                                   '(#$(file "bare-bones.tmpl")
+                                     #$(file "porcupine.tmpl")
+                                     #$(file "partition"))
+                                   '("bare-bones.scm"
+                                     "porcupine.scm"
+                                     "partition"))
+                         #t))))
+
+  `(("configuration" ,directory)))
+
+(define configuration-template-service-type
+  (service-type (name 'configuration-template)
+                (extensions
+                 (list (service-extension etc-service-type
+                                          /etc/configuration-files)))))
+
+(define %configuration-template-service
+  (service configuration-template-service-type #t))
+
+
 (define %nscd-minimal-caches
   ;; Minimal in-memory caching policy for nscd.
   (list (nscd-cache (database 'hosts)
@@ -173,6 +296,9 @@ Access documentation at any time by pressing Alt-F2.\x1b[0m
                                                 (auto-login "root")
                                                 (login-pause? #t))))
 
+    (define bare-bones-os
+      (load "bootstrap/bare-bones.tmpl"))
+
     (list (service virtual-terminal-service-type)
 
           (service kmscon-service-type
@@ -186,10 +312,10 @@ Access documentation at any time by pressing Alt-F2.\x1b[0m
           ;; Documentation.  The manual is in UTF-8, but
           ;; 'console-font-service' sets up Unicode support and loads a font
           ;; with all the useful glyphs like em dash and quotation marks.
-          (mingetty-service (mingetty-configuration
-                             (tty "tty2")
-                             (auto-login "guest")
-                             (login-program (log-to-info))))
+          (service documentation-service-type "tty2")
+
+          ;; Documentation add-on.
+          %configuration-template-service
 
           ;; A bunch of 'root' ttys.
           (normal-tty "tty3")
@@ -215,12 +341,18 @@ Access documentation at any time by pressing Alt-F2.\x1b[0m
           ;; since it takes the installation directory as an argument.
           (cow-store-service)
 
-          ;; Install Unicode support and a suitable font.  Use a font that
-          ;; doesn't have more than 256 glyphs so that we can use colors with
-          ;; varying brightness levels (see note in setfont(8)).
+          ;; Install Unicode support and a suitable font.
           (service console-font-service-type
-                   (map (lambda (tty)
-                          (cons tty "lat9u-16"))
+                   (map (match-lambda
+                          ("tty2"
+                           ;; Use a font that contains characters such as
+                           ;; curly quotes as found in the manual.
+                           '("tty2" . "LatGrkCyr-8x16"))
+                          (tty
+                           ;; Use a font that doesn't have more than 256
+                           ;; glyphs so that we can use colors with varying
+                           ;; brightness levels (see note in setfont(8)).
+                           `(,tty . "lat9u-16")))
                         '("tty1" "tty2" "tty3" "tty4" "tty5" "tty6")))
 
           ;; To facilitate copy/paste.
@@ -263,8 +395,13 @@ Access documentation at any time by pressing Alt-F2.\x1b[0m
                    (connman-configuration
                     (disable-vpn? #t)))
 
+          ;; Keep a reference to BARE-BONES-OS to make sure it can be
+          ;; installed without downloading/building anything.  Also keep the
+          ;; things needed by 'profile-derivation' to minimize the amount of
+          ;; download.
           (service gc-root-service-type
-                   (list glibc-utf8-locales
+                   (list bare-bones-os
+                         glibc-utf8-locales
                          texinfo
                          (canonical-package guile-2.2))))))
 
@@ -285,10 +422,13 @@ Access documentation at any time by pressing Alt-F2.\x1b[0m
     (bootloader (bootloader-configuration
                  (bootloader grub-bootloader)
                  (target "/dev/sda")))
+    ;; Kernel
     (kernel linux-blobby)
+    (firmware (append (list linux-firmware-iwlwifi) %base-firmware))
+
     ;; xts is a builtin module
     (initrd-modules (delete "xts" %base-initrd-modules))
-    (firmware (append (list linux-firmware-iwlwifi) %base-firmware))
+
     (file-systems
      ;; Note: the disk image build code overrides this root file system with
      ;; the appropriate one.
@@ -352,6 +492,100 @@ Access documentation at any time by pressing Alt-F2.\x1b[0m
                      nvi                          ;:wq!
                      nss-certs ; To access HTTPS, use git, etc.
                      %base-packages))))
+
+(define* (os-with-u-boot os board #:key (bootloader-target "/dev/mmcblk0")
+                         (triplet "arm-linux-gnueabihf"))
+  "Given OS, amend it with the u-boot bootloader for BOARD,
+installed to BOOTLOADER-TARGET (a drive), compiled for TRIPLET.
+
+If you want a serial console, make sure to specify one in your
+operating-system's kernel-arguments (\"console=ttyS0\" or similar)."
+  (operating-system (inherit os)
+    (bootloader (bootloader-configuration
+                 (bootloader (bootloader (inherit u-boot-bootloader)
+                              (package (make-u-boot-package board triplet))))
+                 (target bootloader-target)))))
+
+(define* (embedded-installation-os bootloader bootloader-target tty
+                                   #:key (extra-modules '()))
+  "Return an installation os for embedded systems.
+The initrd gets the extra modules EXTRA-MODULES.
+A getty is provided on TTY.
+The bootloader BOOTLOADER is installed to BOOTLOADER-TARGET."
+  (operating-system
+    (inherit installation-os)
+    (bootloader (bootloader-configuration
+                 (bootloader bootloader)
+                 (target bootloader-target)))
+    (kernel linux-blobby)
+    (kernel-arguments
+     (cons (string-append "console=" tty)
+           (operating-system-user-kernel-arguments installation-os)))
+    (initrd-modules (append extra-modules %base-initrd-modules))))
+
+(define beaglebone-black-installation-os
+  (embedded-installation-os u-boot-beaglebone-black-bootloader
+                            "/dev/sda"
+                            "ttyO0"
+                            #:extra-modules
+                            ;; This module is required to mount the sd card.
+                            '("omap_hsmmc")))
+
+
+(define a20-olinuxino-lime-installation-os
+  (embedded-installation-os u-boot-a20-olinuxino-lime-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttyS0"))
+
+(define a20-olinuxino-lime2-emmc-installation-os
+  (embedded-installation-os u-boot-a20-olinuxino-lime2-bootloader
+                            "/dev/mmcblk1" ; eMMC storage
+                            "ttyS0"))
+
+(define a20-olinuxino-micro-installation-os
+  (embedded-installation-os u-boot-a20-olinuxino-micro-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttyS0"))
+
+(define bananapi-m2-ultra-installation-os
+  (embedded-installation-os u-boot-bananapi-m2-ultra-bootloader
+                            "/dev/mmcblk1" ; eMMC storage
+                            "ttyS0"))
+
+(define mx6cuboxi-installation-os
+  (embedded-installation-os u-boot-mx6cuboxi-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttymxc0"))
+
+(define novena-installation-os
+  (embedded-installation-os u-boot-novena-bootloader
+                            "/dev/mmcblk1" ; SD card storage
+                            "ttymxc1"))
+
+(define nintendo-nes-classic-edition-installation-os
+  (embedded-installation-os u-boot-nintendo-nes-classic-edition-bootloader
+                            "/dev/mmcblk0" ; SD card (solder it yourself)
+                            "ttyS0"))
+
+(define pine64-plus-installation-os
+  (embedded-installation-os u-boot-pine64-plus-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttyS0"))
+
+(define pinebook-installation-os
+  (embedded-installation-os u-boot-pinebook-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttyS0"))
+
+(define rk3399-puma-installation-os
+  (embedded-installation-os u-boot-puma-rk3399-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttyS0"))
+
+(define wandboard-installation-os
+  (embedded-installation-os u-boot-wandboard-bootloader
+                            "/dev/mmcblk0" ; SD card storage
+                            "ttymxc0"))
 
 ;; Return the default os here so 'guix system' can consume it directly.
 installation-os
