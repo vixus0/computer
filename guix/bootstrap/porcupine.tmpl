@@ -2,7 +2,7 @@
 (use-modules (guix channels))
 (use-modules (vixus linux-blobby))
 (use-service-modules networking ssh desktop pm sound)
-(use-package-modules tmux xorg freedesktop wm version-control vim wget curl fonts)
+(use-package-modules version-control nano wget)
 
 (cons (channel
         (name 'vixus)
@@ -61,13 +61,9 @@
 
   ;; Globally-installed packages.
   (packages (cons*
-              tmux
               git-minimal
-              emacs-minimal
-              stow
               nano
               wget
-              curl
               %base-packages))
 
   ;; Services
