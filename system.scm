@@ -5,7 +5,8 @@
   (nongnu packages linux)
   (nongnu system linux-initrd))
 
-(use-service-modules cups desktop networking ssh xorg)
+(use-package-modules security-token)
+(use-service-modules cups desktop networking ssh xorg security-token)
 
 (operating-system
   (kernel linux)
@@ -44,6 +45,10 @@
    (append
      (list
        (service gnome-desktop-service-type)
+
+       ;; for yubikey
+       (service pcscd-service-type)
+       (udev-rules-service 'yubikey yubikey-personalization)
 
        ;; set keyboard layout for xorg
        (set-xorg-configuration
