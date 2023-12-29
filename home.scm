@@ -6,14 +6,11 @@
 
 (use-modules (gnu home)
              (gnu packages)
+             (gnu packages shells)
              (gnu services)
              (guix gexp)
+             (gnu home services)
              (gnu home services shells))
-
-(define (home/file path name)
-  (local-file
-    (string-append (dirname (current-filename)) "/" path)
-    name))
 
 (home-environment
   ;; Below is the list of packages that will show up in your
@@ -23,6 +20,7 @@
       (list
 	"firefox"
 	"glibc-locales"
+	"kitty"
 	"ncurses" ;; needed for `clear` command
 	"neovim"
 	)))
@@ -31,7 +29,15 @@
   ;; services, run 'guix home search KEYWORD' in a terminal.
   (services
    (list 
-     (service home-fish-service-type
-             (home-fish-configuration
-              (abbreviations '(("ll" . "ls -l")))))
-     )))
+     (service
+       home-fish-service-type
+       (home-fish-configuration
+         (abbreviations '(("ll" . "ls -l")))))
+     (simple-service
+       'user-env-vars
+       home-environment-variables-service-type
+       `(("_GUIX_HOME_RUN" . "yes")))
+     (simple-service
+       'user-config-files
+       home-xdg-configuration-files-service-type
+       `(("kitty/kitty.conf" ,(local-file "./kitty.conf")))))))
