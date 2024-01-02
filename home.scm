@@ -38,7 +38,8 @@
      (simple-service
        'user-env-vars
        home-environment-variables-service-type
-       `(("_GUIX_HOME_RUN" . "yes")))
+       `(("_GUIX_HOME_RUN" . "yes")
+	 ("EDITOR" . "nvim")))
      (simple-service
        'user-config-files
        home-xdg-configuration-files-service-type
