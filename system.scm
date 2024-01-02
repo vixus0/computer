@@ -34,9 +34,9 @@
   (packages
     (append
       (specifications->packages
-	(list
-	  "intel-vaapi-driver"
-	  "nss-certs"))
+        (list
+          "intel-vaapi-driver"
+          "nss-certs"))
       %base-packages))
 
   ;; Below is the list of system services.  To search for available
@@ -60,21 +60,23 @@
 
        ;; use wayland
        (gdm-service-type
-	 config =>
-	 (gdm-configuration
-	   (inherit config)
-	   (wayland? #t)))
+         config =>
+         (gdm-configuration
+           (inherit config)
+           (wayland? #t)))
 
        ;; add substitute servers to guix
        (guix-service-type
-	 config =>
-	 (guix-configuration
+         config =>
+         (guix-configuration
            (inherit config)
            (substitute-urls
-             (append (list "https://substitutes.nonguix.org")
+             (append
+               (list "https://substitutes.nonguix.org")
                %default-substitute-urls))
            (authorized-keys
-             (append (list (local-file (string-append (dirname (current-filename)) "/" "nonguix.pub")))
+             (append
+               (list (local-file (string-append (dirname (current-filename)) "/" "nonguix.pub")))
                %default-authorized-guix-keys)))))))
 
   (bootloader
