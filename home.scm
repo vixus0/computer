@@ -10,7 +10,9 @@
              (gnu services)
              (guix gexp)
              (gnu home services)
-             (gnu home services shells))
+             (gnu home services shells)
+	     (ice-9 string-fun)
+	     (ice-9 textual-ports))
 
 (home-environment
   ;; Below is the list of packages that will show up in your
@@ -40,4 +42,11 @@
      (simple-service
        'user-config-files
        home-xdg-configuration-files-service-type
-       `(("kitty/kitty.conf" ,(local-file "./kitty.conf")))))))
+       `(("kitty/kitty.conf" ,(local-file "./kitty.conf"))))
+     (simple-service
+       'firefox-config-files
+       home-files-service-type
+       (let ((profile "9ixkawi7.default"))
+       `((".mozilla/firefox/profiles.ini" ,(local-file "./firefox/profiles.ini"))
+	 (,(string-append ".mozilla/firefox/" profile "/user.js") ,(local-file "./firefox/user.js"))
+	 (,(string-append ".mozilla/firefox/" profile "/chrome/userChrome.css") ,(local-file "./firefox/userChrome.css"))))))))
