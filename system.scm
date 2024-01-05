@@ -2,11 +2,27 @@
 
 (use-modules
   (gnu)
+  (ice-9 pretty-print)
   (nongnu packages linux)
   (nongnu system linux-initrd))
 
 (use-package-modules security-token)
-(use-service-modules cups desktop networking ssh xorg security-token)
+(use-service-modules desktop networking ssh xorg security-token)
+
+(with-output-to-file "/etc/guix/channels.scm"
+  (lambda _
+    (pretty-print
+      '(cons*
+         (channel
+           (name 'nonguix)
+           (url "https://gitlab.com/nonguix/nonguix")
+           ;; Enable signature verification:
+           (introduction
+            (make-channel-introduction
+             "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+             (openpgp-fingerprint
+              "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
+         %default-channels))))
 
 (operating-system
   (kernel linux)
@@ -35,8 +51,11 @@
     (append
       (specifications->packages
         (list
+          "git"
           "intel-vaapi-driver"
-          "nss-certs"))
+          "nss-certs"
+          "openssh-sans-x"
+          ))
       %base-packages))
 
   ;; Below is the list of system services.  To search for available

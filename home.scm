@@ -24,7 +24,7 @@
         "kitty"
         "ncurses" ;; needed for `clear` command
         "neovim"
-        "openssh-sans-x"
+        "wl-clipboard"
         )))
 
   ;; Below is the list of Home services.  To search for available
