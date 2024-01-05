@@ -34,6 +34,7 @@
      (service
        home-fish-service-type
        (home-fish-configuration
+         (config `(,(local-file "./fish/config.fish")))
          (abbreviations '(("ll" . "ls -l")))))
      (simple-service
        'user-env-vars
