@@ -5,12 +5,14 @@
 ;; See the "Replicating Guix" section in the manual.
 
 (use-modules
-  (gnu home)
+  (guix channels)
+  (guix gexp)
   (gnu packages)
   (gnu packages shells)
   (gnu services)
-  (guix gexp)
+  (gnu home)
   (gnu home services)
+  (gnu home services guix)
   (gnu home services shells))
 
 (home-environment
@@ -31,9 +33,23 @@
   ;; services, run 'guix home search KEYWORD' in a terminal.
   (services
    (list
-     (service
+     (simple-service
+       'user-channels
+       home-channels-service-type
+       (list
+         (channel
+             (name 'nonguix)
+             (url "https://gitlab.com/nonguix/nonguix")
+             ;; Enable signature verification:
+             (introduction
+              (make-channel-introduction
+               "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+               (openpgp-fingerprint
+                "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))))
+     (simple-service
+       'user-fish
        home-fish-service-type
-       (home-fish-configuration
+       (home-fish-extension
          (config `(,(local-file "./fish/config.fish")))
          (abbreviations '(("ll" . "ls -l")))))
      (simple-service
